@@ -1,0 +1,416 @@
+```{r}
+library(tidyverse)
+library(shiny)
+```
+
+```{r}
+##constants
+```
+
+
+```{r}
+##functions 
+churnBG <- Vectorize(function(alpha, beta, period){
+  # Computes churn probabilities based on sBG distribution
+  # Equation (7) in Paper 1
+  #
+  # Args:
+  #  alpha: numeric
+  #  beta: numeric
+  #  period: integer or vector of integers
+  #
+  # Returns:
+  #  Vector of churn probabilities for period(s) 
+  t1 = alpha/(alpha+beta)
+  result = t1
+  if (period > 1) {
+    result = (beta+period-2)/(alpha+beta+period-1)
+  }
+  
+  return(result)
+}, vectorize.args = c("period"))
+
+
+survivalBG = Vectorize(function(alpha, beta, period){
+  m = max(period)
+  # Computes survival probabilites based on a sBG distribution
+  #
+  # Args:
+  #  alpha: numeric
+  #  beta: numeric
+  #  period: integer or vector of integers
+  #
+  # Returns:
+  #  Vector of survival probabilities for period(s) 
+  t1 = 1-churnBG(alpha, beta, 1)
+  churnlist = c(t1, -1 * cumprod(churnBG(alpha,beta,1:m))[2:m])
+  
+  survivals = cumsum(churnlist)
+  
+  result = survivals[period]
+  
+  return(result)
+}, vectorize.args = c("period"))
+
+
+
+MLL = function(params){
+  # Computes likelihood. Equation (B3) in Paper 1
+  #
+  # Args:
+  #  alphabeta: vector with alpha being the first and beta being the second elements, c(a,b)
+  #
+  # Returns:
+  #  Vector of churn probabilities for period(s) 
+  #
+
+  alpha = params[1]
+  beta = params[2]
+  gamma = params[3]
+
+  return(
+    sqrt(
+      sum(
+        (
+          pmax(survivalBG(alpha, beta, c(1,7,30)) - gamma, 0) - active_cust
+        ) ^ 2
+      ) / 3
+    )
+    
+  )
+}
+
+
+
+
+optimization <- function(d1, d7, d30, new_users) {
+  active_cust <<- c(d1, d7, d30)
+  
+  fun <- optim(c(1, 1, 0), MLL)
+  
+  alpha = fun$par[1]
+  beta = fun$par[2]
+  gamma = fun$par[3]
+  
+  ret = pmax(survivalBG(alpha, beta, 1:365) - gamma, 0)
+
+  df = data.frame(day = 1:length(ret), ret, new_users)
+  df$ret_users <- new_users * df$ret
+  df$total_users <- cumsum(df$ret_users)
+  
+  return(df)
+}
+
+
+v <- optimization(.6, .5, .4, 100)
+
+## TODO Make the optimization function
+##Inputs = d1, d7, d30, new users 
+##Outputs = c(users plot, retention plot)
+```
+
+```{r}
+d1 = .4
+d7 = .2
+d30 = .1
+active_cust = c(d1, d7, d30)
+  
+fun <- optim(
+  c(1, 1, .1),
+  MLL)
+
+alpha = fun$par[1]
+beta = fun$par[2]
+gamma = fun$par[3]
+
+fun$value
+c(alpha, beta, gamma)
+pmax(survivalBG(alpha, beta, 1:30) - gamma, 0)[c(1,7,30)]
+```
+
+
+```{r}
+ui <- fluidPage(
+  tags$head(
+  tags$style(
+  "#drafted_players{color:red; font-size:12px; font-style:italic; 
+    overflow-y:scroll; max-height: 400px; background: ghostwhite;
+  #your_draft{width:100%;}")
+  ),
+  h1("Shiny", span("Widgets Gallery", style = "font-weight: 300")),
+  
+  br(),
+  
+  column(
+    4, 
+    numericInput(
+      inputId = 'd1',
+      label = 'd1',
+      value = .4,
+      min = 0,
+      max = 1
+    ),
+    numericInput(
+      inputId = 'd7',
+      label = 'd7',
+      value = .2,
+      min = 0, 
+      max = 1
+    ),
+    numericInput(
+      inputId = 'd30',
+      label = 'd30',
+      value = .1,
+      min = 0, 
+      max = 1
+    ),
+    br(),
+    numericInput(
+      inputId = 'new_users',
+      label = 'New Users per Day',
+      value = 100,
+      min = 0
+    ),
+    br(),
+    actionButton(
+      inputId = 'generate',
+      label = 'Generate Charts'
+    )
+  ),
+  
+  
+  
+  column(
+    8,
+    plotOutput('users'),
+    plotOutput('retention')
+  )
+)
+```
+
+
+```{r}
+server <- function(input, output, session) {
+  
+  ##TODO observeEvent on 'generate'
+  observeEvent(input$generate, {
+    df = optimization(input$d1, input$d7, input$d30, input$new_users)
+    
+    output$users = renderPlot({
+      ggplot(
+        data = df,
+        mapping = aes(
+          x = day,
+          y = total_users
+        )
+      ) +
+        geom_line() +
+        theme_bw() +
+        ylab("DAUs")
+    })
+    
+    
+    output$retention = renderPlot({
+      ggplot(
+        data = df, 
+        mapping = aes(
+          x = day,
+          y = ret
+        )
+      ) +
+        geom_line() +
+        theme_bw() +
+        ylab("Retention")
+    })
+    
+    
+  })
+  
+}
+```
+
+
+```{r}
+shinyApp(ui = ui, server = server)
+```
+
+
+#function
+```{r}
+churnBG <- Vectorize(function(alpha, beta, period){
+  # Computes churn probabilities based on sBG distribution
+  # Equation (7) in Paper 1
+  #
+  # Args:
+  #  alpha: numeric
+  #  beta: numeric
+  #  period: integer or vector of integers
+  #
+  # Returns:
+  #  Vector of churn probabilities for period(s) 
+  t1 = alpha/(alpha+beta)
+  result = t1
+  if (period > 1) {
+    result = (beta+period-2)/(alpha+beta+period-1)
+  }
+  
+  return(result)
+}, vectorize.args = c("period"))
+```
+
+```{r}
+survivalBG = Vectorize(function(alpha, beta, period){
+  # Computes survival probabilites based on a sBG distribution
+  #
+  # Args:
+  #  alpha: numeric
+  #  beta: numeric
+  #  period: integer or vector of integers
+  #
+  # Returns:
+  #  Vector of survival probabilities for period(s) 
+  t1 = 1-churnBG(alpha, beta, 1)
+  result = t1
+  if(period>1){
+    result = survivalBG(alpha, beta, period-1) - churnBG(alpha, beta, period)
+  }
+  return(result)
+}, vectorize.args = c("period"))
+
+# values
+survivalBG(1, 1, c(1,7,365))
+```
+
+
+```{r}
+MLL = function(params){
+  # Computesl ikelihood. Equation (B3) in Paper 1
+  #
+  # Args:
+  #  alphabeta: vector with alpha being the first and beta being the second elements, c(a,b)
+  #
+  # Returns:
+  #  Vector of churn probabilities for period(s) 
+  #
+  # Error handling
+  if(length(activeCust) != length(lostCust)){
+    stop("Variables activeCust and lostCust have different lengths: ",
+         length(activeCust), " and ", length(lostCust), ".")
+  }
+  # Example data for seven periods
+  # activeCust = c(869,743,653,593,551,517,491)
+  # lostCust = c(131,126,90,60,42,34,26)
+  alpha = params[1]
+  beta = params[2]
+  gamma = params[3]
+  return(
+    sqrt(
+      sum(
+        (
+          (
+            pmax(
+              survivalBG(
+              alpha, beta, c(1,7,30)
+              ) - gamma, 0
+              ) 
+            ) - activeCust
+          )^2 / 3)
+      )
+  )
+}
+
+# Data from paper
+activeCust = c(.6,.4,.2)
+lostCust = c(.5, .3, .19)
+
+MLL(c(.66, 3.8, -.01))
+```
+
+
+
+```{r}
+fun <- optim(c(.66, 3.8, .01), MLL)
+```
+
+```{r}
+fun
+```
+
+
+```{r}
+alpha = fun$par[1]
+beta = fun$par[2]
+gamma = fun$par[3]
+
+plot(c(1, pmax(survivalBG(alpha, beta, 1:100) - gamma, 0)))
+```
+
+```{r}
+activeCust = c(.6,.4,.2)
+fun <- optim(c(.66, 3.8, .01), MLL)
+
+alpha = fun$par[1]
+beta = fun$par[2]
+gamma = fun$par[3]
+
+ret = pmax(survivalBG(alpha, beta, 1:100) - gamma, 0)
+
+new_users = 100
+
+df = data.frame(day = 1:length(ret), ret, new_users)
+df$ret_users <- new_users * df$ret
+df$total_users <- cumsum(df$ret_users)
+```
+
+
+
+```{r}
+ggplot(
+  data = df,
+  mapping = aes(
+    x = day,
+    y = total_users
+  ) 
+) +
+  geom_line() +
+  ylab('DAUs') +
+  theme_bw()
+```
+
+```{r}
+activeCust = c(.69,.22,.10)
+fun <- optim(c(.66, 3.8, .01), MLL)
+
+alpha = fun$par[1]
+beta = fun$par[2]
+gamma = fun$par[3]
+
+ret = pmax(survivalBG(alpha, beta, 1:30) - gamma, 0)
+
+new_users = 100
+
+df2 = data.frame(day = 1:length(ret), ret, new_users)
+df2$ret_users <- new_users * df2$ret
+df2$total_users <- cumsum(df2$ret_users)
+```
+
+```{r}
+plot(ret)
+```
+
+
+
+```{r}
+ggplot(
+  data = df2,
+  mapping = aes(
+    x = day,
+    y = total_users
+  ) 
+) +
+  geom_line() +
+  ylab('DAUs') +
+  theme_bw()
+```
+
+
