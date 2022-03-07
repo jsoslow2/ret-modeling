@@ -3,11 +3,6 @@ library(tidyverse)
 library(shiny)
 ```
 
-```{r}
-##constants
-print('test')
-```
-
 
 ```{r}
 ##functions 
