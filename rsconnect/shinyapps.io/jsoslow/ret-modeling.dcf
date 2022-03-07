@@ -1,0 +1,14 @@
+name: ret-modeling
+title: ret-modeling
+username:
+account: jsoslow
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5792929
+bundleId: 5649759
+url: https://jsoslow.shinyapps.io/ret-modeling/
+when: 1646613175.84934
+lastSyncTime: 1646613175.84935
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: ret modeling shiny.Rmd
