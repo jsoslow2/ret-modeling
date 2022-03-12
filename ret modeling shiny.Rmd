@@ -338,6 +338,90 @@ ggplot(
   geom_line()
 ```
 
+#TESTING RET CHANGES
+```{r}
+###TESTING RET CHANGES
+d1 = .4
+d7 = .2
+d30 = .1
+change_in_retention = .01
+
+##0. Get ret list
+ret_list = v$ret
+
+##1. make a dataframe of day to new users
+change = 0
+base_users = 100
+day = 1:365
+new_users = base_users + day * change
+
+##2. Loop and get the new users times retention
+l = data.frame()
+#1. Start loop of day in 1:365
+for (day in 1:365) {
+  #2. New users on the day * retention from day_onward in 1:365-day, capture day, day_onward
+  
+  month = 0
+  if (day %% 30 == 0) {
+    ##2a. modulo day by 30 to get the month
+    month = day / 30
+    
+    ##2b. month * change in retention and reoptimize
+    d1_new = d1 + month * change_in_retention
+    d7_new = d7 + month * change_in_retention
+    d30_new = d30 + month * change_in_retention
+    
+    ##2c. reoptimize to get new ret_list
+    active_cust <- c(d1_new, d7_new, d30_new)
+    fun <- optim(c(1, 1, 0), MLL)
+    alpha = fun$par[1]
+    beta = fun$par[2]
+    gamma = fun$par[3]
+    
+    ##2d. create the new ret_list
+    ret_list = pmax(survivalBG(alpha, beta, 1:(365-day+1)) - gamma, 0)
+    print(month)
+  }
+  
+  ##2e. Return to normal!
+  new_user = new_users[day]
+  rets = ret_list[1:(365-day+1)]
+  ret_users = new_user * rets
+  
+  #3. Do day + day_onwards - 1 to get the downstream day
+  day_onward = day + 1:(365-day+1) - 1
+  
+  #4. Turn it into a dataframe of day, day_onwards, downstream_day, retention, retained_users
+  d = data.frame(day = day,
+                 day_onward = day_onward,
+                 new_user = new_user,
+                 rets = rets,
+                 ret_users = ret_users)
+  
+  #5. Append to df
+  l = bind_rows(l, d)
+}
+
+##3. group by downstream_day and get summarized total retained users
+grouped <- l %>% 
+  group_by(day_onward) %>% 
+  summarise(ret_users = sum(ret_users))
+
+
+ggplot(
+  data = grouped,
+  mapping = aes(
+    x = day_onward,
+    y = ret_users
+  )
+) +
+  geom_line()
+```
+
+
+```{r}
+65 %% 30
+```
 
 
 #function
