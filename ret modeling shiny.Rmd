@@ -77,7 +77,27 @@ MLL = function(params){
 }
 
 
-changing_new_users <- function(ret_list, new_user_base, change_in_new_users) {
+curve_fit <- function(d1, d7, d30, len) {
+  active_cust <<- c(d1, d7, d30)
+
+  fun <- optim(c(1, 1, 0), MLL)
+  
+  alpha <- fun$par[1]
+  beta <- fun$par[2]
+  gamma <- fun$par[3]
+  
+  ret = pmax(survivalBG(alpha, beta, len) - gamma, 0)
+  
+  return(ret)
+}
+
+
+
+
+changing_new_users <- function(ret_list, new_user_base, change_in_new_users, change_in_retention = 0) {
+  ret_list_new <- ret_list
+  
+  
   ##1. make a dataframe of day to new users
   day = 1:365
   new_users = new_user_base + day * change_in_new_users
@@ -86,9 +106,31 @@ changing_new_users <- function(ret_list, new_user_base, change_in_new_users) {
   l = data.frame()
   #1. Start loop of day in 1:365
   for (day in 1:365) {
+    
     #2. New users on the day * retention from day_onward in 1:365-day, capture day, day_onward
+  
+    #Change in retention modeling
+    if (change_in_retention != 0) {
+      
+      month = 0
+      if (day %% 30 == 0) {
+        ##2a. modulo day by 30 to get the month
+        month = day / 30
+        
+        ##2b. month * change in retention and reoptimize
+        d1_new = d1 + month * change_in_retention
+        d7_new = d7 + month * change_in_retention
+        d30_new = d30 + month * change_in_retention
+        
+        ##2c. reoptimize to get new ret_list
+        ret_list_new <- curve_fit(d1_new, d7_new, d30_new, 1:(365-day+1))
+      }
+    }
+
+    
+    #2e. Return to normal
     new_user = new_users[day]
-    rets = ret_list[1:(365-day+1)]
+    rets = ret_list_new[1:(365-day+1)]
     ret_users = new_user * rets
     
     #3. Do day + day_onwards - 1 to get the downstream day
@@ -117,27 +159,12 @@ changing_new_users <- function(ret_list, new_user_base, change_in_new_users) {
 }
 
 
-curve_fit <- function(d1, d7, d30, len) {
-  active_cust <<- c(d1, d7, d30)
-  
-  fun <- optim(c(1, 1, 0), MLL)
-  
-  alpha = fun$par[1]
-  beta = fun$par[2]
-  gamma = fun$par[3]
-  
-  ret = pmax(survivalBG(alpha, beta, len) - gamma, 0)
-  
-  return(ret)
-}
 
-
-
-optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0) {
+optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0, change_in_retention = 0) {
   ret = curve_fit(d1, d7, d30, 1:365)
   
-  if (change_in_new_users != 0) {
-    df = changing_new_users(ret, new_users, change_in_new_users)
+  if ((change_in_new_users != 0) | (change_in_retention != 0)) {
+    df = changing_new_users(ret, new_users, change_in_new_users, change_in_retention)
   } else {
     df = data.frame(day = 1:length(ret), ret, new_users)
     df$ret_users <- new_users * df$ret
@@ -149,14 +176,12 @@ optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0) {
 
 
 v <- optimization(.4, .2, .1, 100)
-v2 <- optimization(.4, .2, .1, 100, 5)
+v2 <- optimization(.4, .2, .1, 100, 1)
+v3 <- optimization(.4, .2, .1, 100, 1, .01)
 
 v
 v2
-
-## TODO Make the optimization function
-##Inputs = d1, d7, d30, new users 
-##Outputs = c(users plot, retention plot)
+v3
 ```
 
 
@@ -229,6 +254,12 @@ ui <- fluidPage(
       value = 0
     ),
     br(),
+    numericInput(
+      inputId = 'retention_change',
+      label = 'Retention Change per Month',
+      value = 0
+    ), 
+    br(),
     actionButton(
       inputId = 'generate',
       label = 'Generate Charts'
@@ -251,7 +282,7 @@ server <- function(input, output, session) {
   
   ##TODO observeEvent on 'generate'
   observeEvent(input$generate, {
-    df = optimization(input$d1, input$d7, input$d30, input$new_users, input$new_user_change)
+    df = optimization(input$d1, input$d7, input$d30, input$new_users, input$new_user_change, input$retention_change)
     
     output$users = renderPlot({
       ggplot(
