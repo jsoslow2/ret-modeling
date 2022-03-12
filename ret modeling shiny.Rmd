@@ -117,11 +117,7 @@ changing_new_users <- function(ret_list, new_user_base, change_in_new_users) {
 }
 
 
-
-
-
-
-optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0) {
+curve_fit <- function(d1, d7, d30, len) {
   active_cust <<- c(d1, d7, d30)
   
   fun <- optim(c(1, 1, 0), MLL)
@@ -130,7 +126,15 @@ optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0) {
   beta = fun$par[2]
   gamma = fun$par[3]
   
-  ret = pmax(survivalBG(alpha, beta, 1:365) - gamma, 0)
+  ret = pmax(survivalBG(alpha, beta, len) - gamma, 0)
+  
+  return(ret)
+}
+
+
+
+optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0) {
+  ret = curve_fit(d1, d7, d30, 1:365)
   
   if (change_in_new_users != 0) {
     df = changing_new_users(ret, new_users, change_in_new_users)
