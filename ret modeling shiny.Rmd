@@ -77,9 +77,51 @@ MLL = function(params){
 }
 
 
+changing_new_users <- function(ret_list, new_user_base, change_in_new_users) {
+  ##1. make a dataframe of day to new users
+  day = 1:365
+  new_users = new_user_base + day * change_in_new_users
+  
+  ##2. Loop and get the new users times retention
+  l = data.frame()
+  #1. Start loop of day in 1:365
+  for (day in 1:365) {
+    #2. New users on the day * retention from day_onward in 1:365-day, capture day, day_onward
+    new_user = new_users[day]
+    rets = ret_list[1:(365-day+1)]
+    ret_users = new_user * rets
+    
+    #3. Do day + day_onwards - 1 to get the downstream day
+    day_onward = day + 1:(365-day+1) - 1
+    
+    #4. Turn it into a dataframe of day, day_onwards, downstream_day, retention, retained_users
+    d = data.frame(day = day,
+                   day_onward = day_onward,
+                   new_user = new_user,
+                   rets = rets,
+                   ret_users = ret_users)
+    
+    #5. Append to df
+    l = bind_rows(l, d)
+  }
+  
+  ##3. group by downstream_day and get summarized total retained users
+  grouped <- l %>% 
+    group_by(day_onward) %>% 
+    summarise(total_users = sum(ret_users)) %>% 
+    rename(day = day_onward)
+  grouped$ret <- ret_list
+  
+  
+  return(grouped)
+}
 
 
-optimization <- function(d1, d7, d30, new_users) {
+
+
+
+
+optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0) {
   active_cust <<- c(d1, d7, d30)
   
   fun <- optim(c(1, 1, 0), MLL)
@@ -89,16 +131,24 @@ optimization <- function(d1, d7, d30, new_users) {
   gamma = fun$par[3]
   
   ret = pmax(survivalBG(alpha, beta, 1:365) - gamma, 0)
-
-  df = data.frame(day = 1:length(ret), ret, new_users)
-  df$ret_users <- new_users * df$ret
-  df$total_users <- cumsum(df$ret_users)
+  
+  if (change_in_new_users != 0) {
+    df = changing_new_users(ret, new_users, change_in_new_users)
+  } else {
+    df = data.frame(day = 1:length(ret), ret, new_users)
+    df$ret_users <- new_users * df$ret
+    df$total_users <- cumsum(df$ret_users)
+  }
   
   return(df)
 }
 
 
-v <- optimization(.6, .5, .4, 100)
+v <- optimization(.4, .2, .1, 100)
+v2 <- optimization(.4, .2, .1, 100, 5)
+
+v
+v2
 
 ## TODO Make the optimization function
 ##Inputs = d1, d7, d30, new users 
@@ -169,6 +219,12 @@ ui <- fluidPage(
       min = 0
     ),
     br(),
+    numericInput(
+      inputId = 'new_user_change',
+      label = 'New User Change per Day',
+      value = 0
+    ),
+    br(),
     actionButton(
       inputId = 'generate',
       label = 'Generate Charts'
@@ -191,7 +247,7 @@ server <- function(input, output, session) {
   
   ##TODO observeEvent on 'generate'
   observeEvent(input$generate, {
-    df = optimization(input$d1, input$d7, input$d30, input$new_users)
+    df = optimization(input$d1, input$d7, input$d30, input$new_users, input$new_user_change)
     
     output$users = renderPlot({
       ggplot(
