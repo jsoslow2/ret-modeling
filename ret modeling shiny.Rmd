@@ -94,7 +94,7 @@ curve_fit <- function(d1, d7, d30, len) {
 
 
 
-changing_new_users <- function(ret_list, new_user_base, change_in_new_users, change_in_retention = 0) {
+changing_new_users <- function(d1, d7, d30, ret_list, new_user_base, change_in_new_users, change_in_retention = 0) {
   ret_list_new <- ret_list
   
   
@@ -164,7 +164,7 @@ optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0, change
   ret = curve_fit(d1, d7, d30, 1:365)
   
   if ((change_in_new_users != 0) | (change_in_retention != 0)) {
-    df = changing_new_users(ret, new_users, change_in_new_users, change_in_retention)
+    df = changing_new_users(d1, d7, d30, ret, new_users, change_in_new_users, change_in_retention)
   } else {
     df = data.frame(day = 1:length(ret), ret, new_users)
     df$ret_users <- new_users * df$ret
@@ -182,26 +182,6 @@ v3 <- optimization(.4, .2, .1, 100, 1, .01)
 v
 v2
 v3
-```
-
-
-```{r}
-d1 = .4
-d7 = .2
-d30 = .1
-active_cust = c(d1, d7, d30)
-  
-fun <- optim(
-  c(1, 1, .1),
-  MLL)
-
-alpha = fun$par[1]
-beta = fun$par[2]
-gamma = fun$par[3]
-
-fun$value
-c(alpha, beta, gamma)
-pmax(survivalBG(alpha, beta, 1:30) - gamma, 0)[c(1,7,30)]
 ```
 
 
