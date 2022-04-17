@@ -86,7 +86,7 @@ curve_fit <- function(d1, d7, d30, len) {
   beta <- fun$par[2]
   gamma <- fun$par[3]
   
-  ret = pmax(survivalBG(alpha, beta, len) - gamma, 0)
+  ret = c(1, pmax(survivalBG(alpha, beta, len) - gamma, 0))
   
   return(ret)
 }
@@ -161,7 +161,7 @@ changing_new_users <- function(d1, d7, d30, ret_list, new_user_base, change_in_n
 
 
 optimization <- function(d1, d7, d30, new_users, change_in_new_users = 0, change_in_retention = 0) {
-  ret = curve_fit(d1, d7, d30, 1:365)
+  ret = curve_fit(d1, d7, d30, 1:364)
   
   if ((change_in_new_users != 0) | (change_in_retention != 0)) {
     df = changing_new_users(d1, d7, d30, ret, new_users, change_in_new_users, change_in_retention)
