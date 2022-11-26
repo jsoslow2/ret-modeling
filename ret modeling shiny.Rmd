@@ -186,6 +186,11 @@ v3
 
 
 ```{r}
+optimization(.4, .2, .1, 100)[c(90,365),]
+```
+
+
+```{r}
 ui <- fluidPage(
   tags$head(
   tags$style(
@@ -301,6 +306,13 @@ server <- function(input, output, session) {
 ```{r}
 shinyApp(ui = ui, server = server)
 ```
+
+
+#Making charts
+```{r}
+
+```
+
 
 #testing new user addition changes
 ```{r}
